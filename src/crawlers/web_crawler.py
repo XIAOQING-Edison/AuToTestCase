@@ -4,11 +4,21 @@
 """
 
 import aiohttp
+import asyncio
 import ssl
 from bs4 import BeautifulSoup
 import logging
 import re
+import os
+import json
 from src.crawlers.base_crawler import BaseCrawler
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 class WebCrawler(BaseCrawler):
     """
@@ -29,6 +39,7 @@ class WebCrawler(BaseCrawler):
                 - login_url: 登录页面URL
                 - login_data: 登录表单数据
                 - verify_ssl: 是否验证SSL证书，默认为True
+                - use_selenium: 是否使用Selenium(处理JS渲染的网站)
         """
         super().__init__(config)
         self.headers = self.config.get('headers', {
@@ -36,6 +47,9 @@ class WebCrawler(BaseCrawler):
         })
         self.verify_ssl = self.config.get('verify_ssl', True)
         self.session = None
+        self.driver = None
+        self.logged_in = False
+        self.logger = logging.getLogger(__name__)
         
     async def _create_session(self):
         """创建和配置一个新的aiohttp会话"""
@@ -65,6 +79,7 @@ class WebCrawler(BaseCrawler):
             ) as response:
                 if response.status == 200:
                     logging.info("登录成功")
+                    self.logged_in = True
                     return True
                 else:
                     logging.error(f"登录失败，状态码: {response.status}")
@@ -73,44 +88,103 @@ class WebCrawler(BaseCrawler):
             logging.error(f"登录过程出错: {str(e)}")
             return False
     
-    async def fetch(self, url):
-        """
-        从URL获取页面内容
-        
-        Args:
-            url (str): 页面URL
+    def _setup_selenium(self, no_verify_ssl=False):
+        """设置Selenium WebDriver"""
+        if self.driver is not None:
+            return self.driver
             
-        Returns:
-            str: 页面HTML内容
-        """
-        session = await self._create_session()
+        options = Options()
+        options.add_argument('--headless')  # 无头模式
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-gpu')
         
-        # 如果配置了登录信息，先尝试登录
-        if self.config.get('login_url'):
-            await self._login()
+        if no_verify_ssl:
+            options.add_argument('--ignore-certificate-errors')
             
-        # 处理基本认证
-        auth = None
-        if self.config.get('auth'):
-            auth = aiohttp.BasicAuth(
-                login=self.config['auth'][0],
-                password=self.config['auth'][1]
-            )
+        # 添加用户代理
+        options.add_argument(f'user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
+        
+        # 添加cookies（如果有）
+        cookies = self.config.get('cookies', {})
         
         try:
-            async with session.get(url, auth=auth) as response:
-                if response.status == 200:
-                    return await response.text()
-                else:
-                    logging.error(f"获取页面失败，状态码: {response.status}")
-                    return ""
+            self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+            return self.driver
         except Exception as e:
-            logging.error(f"获取页面时出错: {str(e)}")
-            return ""
-        finally:
-            if self.session and not self.session.closed:
-                await self.session.close()
-                self.session = None
+            self.logger.error(f"设置Selenium时出错: {e}")
+            raise
+    
+    async def fetch(self, url, no_verify_ssl=False, use_selenium=None):
+        """
+        获取URL内容
+        
+        Args:
+            url: 要获取的URL
+            no_verify_ssl: 是否禁用SSL验证
+            use_selenium: 是否使用Selenium（覆盖配置中的设置）
+            
+        Returns:
+            str: HTML内容
+        """
+        should_use_selenium = use_selenium if use_selenium is not None else self.config.get('use_selenium', False)
+        
+        if should_use_selenium:
+            self.logger.info(f"使用Selenium获取: {url}")
+            try:
+                driver = self._setup_selenium(no_verify_ssl)
+                driver.get(url)
+                
+                # 等待页面加载（可根据需要调整）
+                WebDriverWait(driver, 20).until(
+                    EC.presence_of_element_located((By.TAG_NAME, "body"))
+                )
+                
+                # 如果配置中指定了内容选择器，等待该元素出现
+                content_selector = self.config.get('content_selector')
+                if content_selector:
+                    try:
+                        WebDriverWait(driver, 30).until(
+                            EC.presence_of_element_located((By.CSS_SELECTOR, content_selector))
+                        )
+                    except Exception as e:
+                        self.logger.warning(f"等待内容选择器时超时: {e}")
+                
+                # 获取页面内容
+                html_content = driver.page_source
+                return html_content
+            except Exception as e:
+                self.logger.error(f"使用Selenium获取{url}时出错: {e}")
+                raise
+        else:
+            self.logger.info(f"使用aiohttp获取: {url}")
+            # 如果需要登录，先执行登录
+            if self.config.get('login_url'):
+                await self._login()
+                
+            session = await self._create_session()
+            try:
+                # 创建SSL上下文
+                ssl_context = None
+                if no_verify_ssl:
+                    ssl_context = ssl._create_unverified_context()
+                    
+                auth = None
+                auth_username = self.config.get('auth_username')
+                auth_password = self.config.get('auth_password')
+                if auth_username and auth_password:
+                    auth = aiohttp.BasicAuth(auth_username, auth_password)
+                    
+                async with session.get(url, auth=auth, ssl=ssl_context) as response:
+                    if response.status == 200:
+                        return await response.text()
+                    else:
+                        self.logger.error(f"HTTP错误: {response.status}")
+                        raise Exception(f"HTTP错误: {response.status}")
+            except Exception as e:
+                self.logger.error(f"获取{url}时出错: {e}")
+                self.logger.error(f"获取页面时出错: {e}")
+                raise
     
     async def parse(self, html_content):
         """
@@ -208,14 +282,32 @@ class WebCrawler(BaseCrawler):
         
         return '\n'.join(lines)
     
-    async def extract_requirements(self, url):
+    async def extract_requirements(self, url, no_verify_ssl=False, use_selenium=None):
         """
         从URL提取需求文档
         
         Args:
             url (str): 需求文档URL
+            no_verify_ssl: 是否禁用SSL验证
+            use_selenium: 是否使用Selenium
             
         Returns:
             str: 处理后的需求文本
         """
-        return await self.crawl(url) 
+        try:
+            html_content = await self.fetch(url, no_verify_ssl, use_selenium)
+            requirements = await self.parse(html_content)
+            return requirements
+        except Exception as e:
+            self.logger.error(f"提取需求时出错: {e}")
+            raise
+    
+    async def close(self):
+        """关闭资源"""
+        if self.session:
+            await self.session.close()
+            self.session = None
+            
+        if self.driver:
+            self.driver.quit()
+            self.driver = None 

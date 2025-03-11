@@ -11,6 +11,10 @@ import uuid
 import json
 import re
 import datetime
+import logging
+
+# 配置日志记录
+logger = logging.getLogger("TestGenerator")
 
 class TestStep(BaseModel):
     """
@@ -46,6 +50,7 @@ class TestGenerator:
         Args:
             llm_engine (LLMEngine): LLM引擎实例，用于生成测试用例内容
         """
+        logger.info("初始化测试用例生成器")
         self.llm_engine = llm_engine
         # 初始化计数器用于递增编号
         self.id_counter = 1
@@ -156,8 +161,8 @@ class TestGenerator:
             List[TestCase]: 测试用例对象列表
         """
         try:
-            print("Response content:")
-            print(response)
+            logger.info("开始解析测试用例响应")
+            logger.debug(f"响应内容: {response[:200]}...")
             
             # 移除<think>...</think>标签及其内容
             response = re.sub(r'<think>[\s\S]*?</think>', '', response)
@@ -167,28 +172,33 @@ class TestGenerator:
             if json_match:
                 # 从代码块中提取JSON
                 json_str = json_match.group(1)
+                logger.info("在代码块中找到JSON格式响应")
             else:
                 # 尝试直接从响应中提取JSON
                 json_match = re.search(r'\{[\s\S]*\}', response)
                 if json_match:
                     json_str = json_match.group(0)
+                    logger.info("在响应中直接找到JSON格式内容")
                 else:
-                    print("No JSON found in response")
+                    logger.error("无法从响应中提取JSON格式内容")
+                    logger.debug(f"响应全文: {response}")
                     return [self._create_sample_test_case()]
             
             # 清理JSON字符串
             json_str = re.sub(r',\s*([}\]])', r'\1', json_str)  # 移除尾随逗号
             
-            print("\nTrying to parse JSON:")
-            print(json_str)
+            logger.debug(f"尝试解析JSON: {json_str[:200]}...")
             
             try:
                 data = json.loads(json_str)
+                logger.info("JSON解析成功")
                 
                 if 'test_cases' in data:
                     test_cases = []
+                    logger.info(f"找到 {len(data['test_cases'])} 个测试用例")
+                    
                     for tc in data['test_cases']:
-                        print(f"\nProcessing test case: {tc.get('title', 'Untitled')}")
+                        logger.debug(f"处理测试用例: {tc.get('title', 'Untitled')}")
                         # 尝试提取必要的字段
                         module = tc.get('module', '')
                         title = tc.get('title', '')
@@ -243,70 +253,56 @@ class TestGenerator:
                             priority=priority  # 使用处理后的中文优先级
                         )
                         
-                        print(f"\nCreated test case: {test_case.title}")
-                        print(f"ID: {test_case.id}")  # 打印生成的ID
-                        print(f"Module: {test_case.module}")
-                        print(f"Priority: {test_case.priority}")
-                        print(f"Steps count: {len(test_case.steps)}")
-                        
-                        # 验证测试用例
-                        if self.validate_test_case(test_case):
-                            test_cases.append(test_case)
-                            print(f"Test case validated and added successfully")
-                        else:
-                            print(f"Test case validation failed")
+                        logger.info(f"创建测试用例: {test_case.title}, ID: {test_case.id}, 步骤数: {len(test_case.steps)}")
+                        test_cases.append(test_case)
                     
                     if test_cases:
-                        print(f"\nTotal valid test cases: {len(test_cases)}")
+                        logger.info(f"成功解析 {len(test_cases)} 个测试用例")
                         return test_cases
+                    else:
+                        logger.warning("没有解析出有效的测试用例，创建样例测试用例")
+                        return [self._create_sample_test_case()]
+                else:
+                    logger.error("JSON中未找到test_cases字段")
+                    return [self._create_sample_test_case()]
                 
             except json.JSONDecodeError as e:
-                print(f"Error parsing JSON: {str(e)}")
-                print("JSON content:")
-                print(json_str)
-            
-            # 如果解析失败或没有test_cases字段，返回样例测试用例
-            print("No valid test cases found in response")
-            return [self._create_sample_test_case()]
-            
+                logger.error(f"JSON解析错误: {e}")
+                logger.debug(f"错误的JSON内容: {json_str}")
+                return [self._create_sample_test_case()]
+                
         except Exception as e:
-            print(f"Error parsing test cases: {str(e)}")
+            logger.error(f"解析测试用例时发生错误: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return [self._create_sample_test_case()]
 
     def _create_sample_test_case(self) -> TestCase:
         """
-        创建一个示例测试用例
+        创建一个样例测试用例，用于当解析失败时返回
         
         Returns:
-            TestCase: 示例测试用例对象
+            TestCase: 样例测试用例
         """
+        logger.info("创建样例测试用例")
         return TestCase(
-            id=self.generate_test_id(),  # 使用新的ID生成方法
-            module="登录模块",
-            title="用户名密码登录-正常流程",
-            preconditions=[
-                "系统正常运行",
-                "数据库连接正常",
-                "用户未登录"
-            ],
+            id=self.generate_test_id(),
+            module="示例模块",
+            title="示例测试用例 (LLM响应解析失败)",
+            preconditions=["系统正常运行", "用户已登录"],
             steps=[
                 TestStep(
                     step_number=1,
-                    description='输入有效的用户名（长度6-20个字符）',
-                    expected_result='用户名输入框显示输入的内容'
+                    description="执行操作1",
+                    expected_result="预期结果1"
                 ),
                 TestStep(
                     step_number=2,
-                    description='输入有效的密码（长度8-20个字符，包含字母和数字）',
-                    expected_result='密码输入框显示掩码字符'
-                ),
-                TestStep(
-                    step_number=3,
-                    description='点击登录按钮',
-                    expected_result='登录成功，跳转到首页'
+                    description="执行操作2",
+                    expected_result="预期结果2"
                 )
             ],
-            priority="高"  # 使用中文优先级
+            priority="中"
         )
 
     def validate_test_case(self, test_case: TestCase) -> bool:
@@ -335,4 +331,69 @@ class TestGenerator:
             assert all(step.description and step.expected_result for step in test_case.steps)
             return True
         except AssertionError:
-            return False 
+            return False
+
+    def generate(self, file_path: str) -> List[TestCase]:
+        """
+        从文件生成测试用例（同步版本，为了向后兼容）
+        
+        Args:
+            file_path (str): 需求文档文件路径
+            
+        Returns:
+            List[TestCase]: 生成的测试用例列表
+        """
+        import asyncio
+        import os
+        
+        # 读取文件内容
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except UnicodeDecodeError:
+            # 如果UTF-8解码失败，尝试其他编码
+            with open(file_path, 'rb') as f:
+                content_bytes = f.read()
+                for encoding in ['utf-8', 'gbk', 'gb2312', 'latin-1']:
+                    try:
+                        content = content_bytes.decode(encoding)
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                else:
+                    # 如果所有编码都失败，使用latin-1（它可以解码任何字节序列）
+                    content = content_bytes.decode('latin-1')
+        
+        # 检查是否在事件循环中
+        try:
+            # 如果我们在FastAPI环境中，这个方法将被异步调用
+            # 所以我们需要使用nest_asyncio来允许嵌套的事件循环
+            import nest_asyncio
+            nest_asyncio.apply()
+            
+            # 获取或创建事件循环
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                # 如果当前线程没有事件循环
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+            # 使用事件循环运行异步方法
+            if loop.is_running():
+                # 创建一个Future用于在当前事件循环中获取结果
+                future = asyncio.run_coroutine_threadsafe(self.generate_test_cases(content), loop)
+                test_cases = future.result()
+            else:
+                # 如果事件循环不在运行，使用run_until_complete
+                test_cases = loop.run_until_complete(self.generate_test_cases(content))
+                
+            return test_cases
+            
+        except ImportError:
+            # 如果找不到nest_asyncio库，我们退回到创建一个新的事件循环
+            logger.warning("找不到nest_asyncio库，创建新的事件循环")
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            test_cases = loop.run_until_complete(self.generate_test_cases(content))
+            return test_cases 

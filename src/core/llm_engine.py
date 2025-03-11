@@ -7,8 +7,21 @@ from typing import Dict, Any
 import aiohttp
 import json
 import os
+import logging
+import traceback
 from src.config import API_KEY, MODEL, API_BASE, MAX_TOKENS, TEMPERATURE
 import re
+
+# 配置日志记录
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("llm_engine.log"),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger("LLMEngine")
 
 class LLMEngine:
     """
@@ -21,8 +34,7 @@ class LLMEngine:
         初始化LLM引擎
         设置API配置
         """
-        print(f"Using model: {MODEL}")
-        print(f"API Base: {API_BASE}")
+        logger.info(f"初始化LLM引擎，使用模型: {MODEL}, API地址: {API_BASE}")
         
         self.headers = {
             "Content-Type": "application/json"
@@ -53,22 +65,39 @@ class LLMEngine:
                 }
             }
             
+            # 记录请求信息
+            logger.info(f"发送请求到API: {self.api_base}/api/generate")
+            logger.debug(f"使用模型: {self.model}")
+            
             # 发送请求到本地Deepseek模型
-            print("Sending request to local Deepseek model...")
             async with aiohttp.ClientSession() as session:
-                async with session.post(f"{self.api_base}/api/generate", json=data) as response:
+                async with session.post(f"{self.api_base}/api/generate", json=data, timeout=120) as response:
                     if response.status != 200:
                         error_text = await response.text()
+                        logger.error(f"API请求失败，状态码: {response.status}，错误信息: {error_text}")
                         raise Exception(f"API request failed with status {response.status}: {error_text}")
                     
                     result = await response.json()
+                    logger.info("API请求成功，收到响应")
+                    
                     if "response" not in result:
+                        logger.error(f"API响应格式无效: {result}")
                         raise Exception("Invalid response format from API")
                     
                     # 获取完整响应内容并返回
                     return result["response"]
                     
+        except aiohttp.ClientError as e:
+            logger.error(f"网络请求错误: {e}")
+            logger.error(traceback.format_exc())
+            raise Exception(f"Network error communicating with LLM API: {str(e)}")
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON解析错误: {e}")
+            logger.error(traceback.format_exc())
+            raise Exception(f"Error decoding JSON response from LLM API: {str(e)}")
         except Exception as e:
+            logger.error(f"生成响应时发生错误: {e}")
+            logger.error(traceback.format_exc())
             raise Exception(f"Error generating response from LLM: {str(e)}")
 
     async def analyze_requirements(self, requirements: str) -> str:
@@ -81,7 +110,13 @@ class LLMEngine:
         Returns:
             str: 分析结果，包含关键测试点
         """
-        system_prompt = """你是一个专业的测试需求分析师。请分析需求并返回JSON格式的分析结果。
+        try:
+            logger.info("开始分析需求文档")
+            
+            # 记录需求文档内容（仅用于调试）
+            logger.debug(f"需求文档内容: {requirements[:100]}...")
+            
+            system_prompt = """你是一个专业的测试需求分析师。请分析需求并返回JSON格式的分析结果。
 
 警告：必须严格遵守以下规则：
 1. 只返回JSON格式的数据
@@ -109,6 +144,12 @@ JSON格式示例：
     }
 }"""
 
-        # 发送请求到LLM
-        response = await self.generate_response(requirements, system_prompt)
-        return response 
+            logger.info("发送需求分析请求")
+            # 发送请求到LLM
+            response = await self.generate_response(requirements, system_prompt)
+            logger.info("需求分析完成")
+            return response
+        except Exception as e:
+            logger.error(f"分析需求时发生错误: {e}")
+            logger.error(traceback.format_exc())
+            raise Exception(f"Error analyzing requirements: {str(e)}") 

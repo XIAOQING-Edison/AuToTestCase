@@ -1,0 +1,91 @@
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.site-layout-content {
+  background: #fff;
+  padding: 24px;
+  min-height: 380px;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.logo {
+  float: left;
+  width: 120px;
+  height: 31px;
+  margin: 16px 24px 16px 0;
+  color: white;
+  font-size: 20px;
+  font-weight: bold;
+  line-height: 31px;
+}
+
+.home-page {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.test-case-generator {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.settings-page {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.ant-upload {
+  width: 100%;
+}
+
+.ant-upload-list {
+  margin-top: 16px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .site-layout-content {
+    padding: 16px;
+  }
+  
+  .logo {
+    margin-right: 10px;
+  }
+}

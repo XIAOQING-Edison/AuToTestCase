@@ -8,3 +8,5 @@ aiohttp==3.9.1
 beautifulsoup4==4.12.2
 lxml
 requests==2.31.0
+selenium==4.14.0
+webdriver-manager==4.0.1

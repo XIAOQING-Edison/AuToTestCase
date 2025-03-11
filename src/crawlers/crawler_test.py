@@ -6,6 +6,7 @@
 import argparse
 import asyncio
 import json
+import logging
 import os
 import sys
 import ssl
@@ -15,17 +16,24 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 from src.crawlers.web_crawler import WebCrawler
 
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
-async def test_crawler(url, config_file=None, output_file=None, content_selector=None, no_verify_ssl=False):
+async def test_crawler(url, config_file=None, output_file=None, content_selector=None, 
+                       no_verify_ssl=False, use_selenium=True):
     """
     测试爬虫功能
     
     Args:
-        url (str): 要爬取的URL
-        config_file (str, optional): 配置文件路径
-        output_file (str, optional): 输出文件路径
-        content_selector (str, optional): 内容选择器
-        no_verify_ssl (bool, optional): 是否禁用SSL验证
+        url: 要爬取的URL
+        config_file: 配置文件路径
+        output_file: 输出文件路径
+        content_selector: 内容选择器 (CSS选择器)
+        no_verify_ssl: 是否禁用SSL验证
+        use_selenium: 是否使用Selenium处理JavaScript
     """
     # 加载配置
     config = {}
@@ -34,50 +42,52 @@ async def test_crawler(url, config_file=None, output_file=None, content_selector
             with open(config_file, 'r', encoding='utf-8') as f:
                 config = json.load(f)
         except Exception as e:
-            print(f"加载配置文件失败: {str(e)}")
+            logging.error(f"加载配置文件失败: {e}")
+            return
     
-    # 如果提供了内容选择器，覆盖配置
+    # 如果命令行提供了选择器，覆盖配置文件中的选择器
     if content_selector:
         config['content_selector'] = content_selector
     
-    # 如果设置了不验证SSL
-    if no_verify_ssl:
-        # 禁用SSL验证警告
-        import urllib3
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        # 修改aiohttp会话配置
-        config['verify_ssl'] = False
-    
-    # 创建爬虫
+    # 设置use_selenium标志
+    config['use_selenium'] = use_selenium
+        
+    # 初始化爬虫
     crawler = WebCrawler(config)
     
-    # 执行爬取
-    print(f"开始爬取 {url}")
-    content = await crawler.extract_requirements(url)
-    
-    # 输出结果
-    if not content:
-        print("未能提取到内容")
-        return
-    
-    print(f"成功提取内容，长度: {len(content)}")
-    
-    # 预览内容
-    preview_length = min(500, len(content))
-    print(f"\n内容预览 (前{preview_length}字符):")
-    print("-" * 50)
-    print(content[:preview_length] + ("..." if len(content) > preview_length else ""))
-    print("-" * 50)
-    
-    # 保存到文件
-    if output_file:
-        try:
+    try:
+        print(f"开始爬取 {url}")
+        content = await crawler.extract_requirements(url, no_verify_ssl=no_verify_ssl, use_selenium=use_selenium)
+        
+        print(f"成功提取内容，长度: {len(content)}")
+        
+        # 显示内容预览
+        preview_length = min(100, len(content))
+        print("\n内容预览 (前{}字符):".format(preview_length))
+        print("-" * 50)
+        print(content[:preview_length])
+        print("-" * 50)
+        
+        # 保存到文件
+        if output_file:
+            os.makedirs(os.path.dirname(output_file) or '.', exist_ok=True)
             with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(content)
             print(f"内容已保存到: {output_file}")
-        except Exception as e:
-            print(f"保存内容到文件失败: {str(e)}")
+            
+    except Exception as e:
+        logging.error(f"爬取失败: {e}")
+        raise
+    finally:
+        await crawler.close()
 
+async def login(page, username, password):
+    """执行登录过程"""
+    await page.fill('input[name="username"]', username)
+    await page.fill('input[name="password"]', password)
+    await page.click('button[type="submit"]')
+    # 等待登录完成
+    await page.wait_for_navigation()
 
 async def main():
     parser = argparse.ArgumentParser(description='测试爬虫功能')
@@ -86,6 +96,7 @@ async def main():
     parser.add_argument('--output', '-o', help='输出文件路径')
     parser.add_argument('--selector', '-s', help='内容选择器 (CSS选择器)')
     parser.add_argument('--no-verify-ssl', action='store_true', help='禁用SSL证书验证')
+    parser.add_argument('--no-selenium', action='store_true', help='禁用Selenium (不处理JavaScript)')
     
     args = parser.parse_args()
     
@@ -94,7 +105,8 @@ async def main():
         config_file=args.config,
         output_file=args.output,
         content_selector=args.selector,
-        no_verify_ssl=args.no_verify_ssl
+        no_verify_ssl=args.no_verify_ssl,
+        use_selenium=not args.no_selenium
     )
 
 

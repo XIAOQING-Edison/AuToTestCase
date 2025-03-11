@@ -90,6 +90,6 @@ REQUEST_TIMEOUT = 60
 
 # 文件路径配置
 # 定义输出目录，用于存放生成的Excel和XMind文件
-OUTPUT_DIR = "output"
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "output")
 # 确保输出目录存在
 os.makedirs(OUTPUT_DIR, exist_ok=True) 
