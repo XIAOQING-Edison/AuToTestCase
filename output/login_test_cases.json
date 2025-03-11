@@ -5,159 +5,50 @@
       "title": "登录模块",
       "children": [
         {
-          "title": "e8ae2e0f-fcdb-44b6-b783-8e5c2a7bc2a7: 基本功能测试",
+          "title": "20250311-001: 用户名密码登录-正常流程",
           "children": [
             {
-              "title": "Priority: High | Category: Functional",
+              "title": "优先级: 高",
               "children": []
             },
             {
-              "title": "Preconditions",
+              "title": "前置条件",
               "children": [
                 {
-                  "title": "浏览器已初始化"
+                  "title": "系统正常运行"
                 },
                 {
-                  "title": "用户已注册"
+                  "title": "数据库连接正常"
+                },
+                {
+                  "title": "用户未登录"
                 }
               ]
             },
             {
-              "title": "Test Steps",
+              "title": "测试步骤",
               "children": [
                 {
-                  "title": "1. 用户点击登录按钮后，系统应显示欢迎页面",
+                  "title": "1. 输入有效的用户名（长度6-20个字符）",
                   "children": [
                     {
-                      "title": "Expected: 成功跳转到欢迎页面"
+                      "title": "预期结果: 用户名输入框显示输入的内容"
                     }
                   ]
                 },
                 {
-                  "title": "2. 用户输入用户名和密码后，系统应验证输入并显示提示信息",
+                  "title": "2. 输入有效的密码（长度8-20个字符，包含字母和数字）",
                   "children": [
                     {
-                      "title": "Expected: 正确输入：用户名/密码正确；错误输入：显示错误提示"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "title": "68a75d8f-4c6e-4ed0-967c-1e7e11b3d1f0: 异常情况测试",
-          "children": [
-            {
-              "title": "Priority: High | Category: Security",
-              "children": []
-            },
-            {
-              "title": "Preconditions",
-              "children": [
-                {
-                  "title": "用户已注册"
-                },
-                {
-                  "title": "系统处于正常运行状态"
-                }
-              ]
-            },
-            {
-              "title": "Test Steps",
-              "children": [
-                {
-                  "title": "1. 用户输入无效用户名进行登录，系统应阻止并显示错误提示",
-                  "children": [
-                    {
-                      "title": "Expected: 错误提示：用户名不存在"
+                      "title": "预期结果: 密码输入框显示掩码字符"
                     }
                   ]
                 },
                 {
-                  "title": "2. 用户尝试重复密码过多次后，系统应限制账户",
+                  "title": "3. 点击登录按钮",
                   "children": [
                     {
-                      "title": "Expected: 账户被锁定，无法继续登录"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "title": "0aba5e27-d032-4ae7-8e4e-7594669bd32d: 多设备登录测试",
-          "children": [
-            {
-              "title": "Priority: High | Category: Functional",
-              "children": []
-            },
-            {
-              "title": "Preconditions",
-              "children": [
-                {
-                  "title": "用户已注册"
-                },
-                {
-                  "title": "用户有至少两个设备"
-                }
-              ]
-            },
-            {
-              "title": "Test Steps",
-              "children": [
-                {
-                  "title": "1. 用户在设备A上登录后，系统应允许用户在设备B上继续登录",
-                  "children": [
-                    {
-                      "title": "Expected: 成功登录并显示欢迎页面"
-                    }
-                  ]
-                },
-                {
-                  "title": "2. 用户尝试在设备A和设备B同时登录，系统应提示最多支持两个设备同时登录",
-                  "children": [
-                    {
-                      "title": "Expected: 提示信息：最多支持两个设备同时登录"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "title": "5551266e-80d6-454c-be0e-f3212a145b4b: 快速登录测试",
-          "children": [
-            {
-              "title": "Priority: High | Category: Functional",
-              "children": []
-            },
-            {
-              "title": "Preconditions",
-              "children": [
-                {
-                  "title": "用户已注册"
-                }
-              ]
-            },
-            {
-              "title": "Test Steps",
-              "children": [
-                {
-                  "title": "1. 用户点击“记住密码”选项后，系统应提示用户重新输入用户名和密码以验证",
-                  "children": [
-                    {
-                      "title": "Expected: 成功跳转到验证页面"
-                    }
-                  ]
-                },
-                {
-                  "title": "2. 用户在快速登录页面输入用户名和密码后，系统应验证并显示结果",
-                  "children": [
-                    {
-                      "title": "Expected: 正确输入：自动登录；错误输入：显示错误提示"
+                      "title": "预期结果: 登录成功，跳转到首页"
                     }
                   ]
                 }

@@ -54,9 +54,9 @@ class XMindExporter:
                     "children": []
                 }
                 
-                # 添加优先级和类别信息
+                # 添加优先级信息
                 info_node = {
-                    "title": f"Priority: {test_case.priority} | Category: {test_case.category}",
+                    "title": f"优先级: {test_case.priority}",
                     "children": []
                 }
                 case_node["children"].append(info_node)
@@ -64,21 +64,21 @@ class XMindExporter:
                 # 添加前置条件
                 if test_case.preconditions:
                     precond_node = {
-                        "title": "Preconditions",
+                        "title": "前置条件",
                         "children": [{"title": precond} for precond in test_case.preconditions]
                     }
                     case_node["children"].append(precond_node)
                 
                 # 添加测试步骤和预期结果
                 steps_node = {
-                    "title": "Test Steps",
+                    "title": "测试步骤",
                     "children": []
                 }
                 for step in test_case.steps:
                     step_node = {
                         "title": f"{step.step_number}. {step.description}",
                         "children": [{
-                            "title": f"Expected: {step.expected_result}"
+                            "title": f"预期结果: {step.expected_result}"
                         }]
                     }
                     steps_node["children"].append(step_node)
@@ -101,4 +101,5 @@ class XMindExporter:
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(mindmap, f, ensure_ascii=False, indent=2)
         
+        print(f"XMind file generated: {output_path}")
         return output_path 

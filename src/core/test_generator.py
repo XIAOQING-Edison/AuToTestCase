@@ -6,10 +6,11 @@
 from typing import List, Dict, Any
 from pydantic import BaseModel
 from src.core.llm_engine import LLMEngine
-from src.config import DEFAULT_TEST_PRIORITY_LEVELS, DEFAULT_TEST_CATEGORIES
+from src.config import DEFAULT_TEST_PRIORITY_LEVELS, PRIORITY_MAPPING, LEGACY_PRIORITY_MAPPING
 import uuid
 import json
 import re
+import datetime
 
 class TestStep(BaseModel):
     """
@@ -30,8 +31,7 @@ class TestCase(BaseModel):
     title: str           # 测试用例标题
     preconditions: List[str]  # 前置条件列表
     steps: List[TestStep]     # 测试步骤列表
-    priority: str        # 优先级(High/Medium/Low)
-    category: str        # 测试类别
+    priority: str        # 优先级(高/中/低)
 
 class TestGenerator:
     """
@@ -47,6 +47,26 @@ class TestGenerator:
             llm_engine (LLMEngine): LLM引擎实例，用于生成测试用例内容
         """
         self.llm_engine = llm_engine
+        # 初始化计数器用于递增编号
+        self.id_counter = 1
+        # 设置日期前缀，用于测试用例ID
+        self.date_prefix = datetime.datetime.now().strftime("%Y%m%d")
+
+    def generate_test_id(self) -> str:
+        """
+        生成测试用例ID
+        格式为：日期-递增编号(YYYYMMDD-XXX)
+        
+        Returns:
+            str: 生成的测试用例ID
+        """
+        # 格式化计数器为3位数，如001, 002等
+        formatted_counter = f"{self.id_counter:03d}"
+        # 组合日期前缀和计数器
+        test_id = f"{self.date_prefix}-{formatted_counter}"
+        # 递增计数器
+        self.id_counter += 1
+        return test_id
 
     async def generate_test_cases(self, requirements: str) -> List[TestCase]:
         """
@@ -63,6 +83,11 @@ class TestGenerator:
             2. 基于分析结果生成详细的测试用例
             3. 解析生成的内容为TestCase对象
         """
+        # 重置ID计数器，确保每次生成测试用例时ID从1开始
+        self.id_counter = 1
+        # 更新日期前缀，以确保使用当前日期
+        self.date_prefix = datetime.datetime.now().strftime("%Y%m%d")
+        
         # 首先分析需求
         analysis = await self.llm_engine.analyze_requirements(requirements)
         
@@ -82,59 +107,43 @@ class TestGenerator:
     def get_system_prompt(self):
         return """警告：任何非JSON格式的输出都会导致系统崩溃！
 你必须严格按照以下要求执行：
-1. 响应必须以'{'开始
-2. 响应必须以'}'结束
-3. 响应内容必须是有效的JSON
-4. 不允许包含任何其他文本、注释或说明
-5. 不允许有任何思考过程或分析内容
-6. 禁止使用<think>标签或其他标记
 
-你是一个专业的测试用例生成器。你的任务是分析给定的需求并生成全面的测试用例，以JSON格式返回。
+1. 你将只输出有效的JSON数据，不要输出任何非JSON内容
+2. 你是一名专业测试工程师，根据需求来编写测试用例
+3. 你需要思考各种测试场景，包括正常流程、边界条件、异常情况等
+4. 每个测试用例应包含：标题、描述、优先级、测试步骤和预期结果
+5. 支持的优先级有：高, 中, 低
 
-JSON结构必须严格遵循以下格式：
+你必须生成如下格式的JSON(不要有任何其他输出)：
+
+```json
 {
-    "test_cases": [
+  "test_cases": [
+    {
+      "module": "登录模块",
+      "title": "测试用例标题",
+      "priority": "高",
+      "preconditions": ["前置条件1", "前置条件2"],
+      "steps": [
         {
-            "module": "登录模块",
-            "title": "<测试用例标题>",
-            "category": "<测试用例类别>",
-            "priority": "<High/Medium/Low>",
-            "preconditions": ["<前置条件1>", "<前置条件2>", ...],
-            "steps": [
-                {
-                    "description": "<步骤描述>",
-                    "expected_result": "<预期结果>"
-                },
-                ...
-            ]
+          "step_number": 1,
+          "description": "步骤描述",
+          "expected_result": "预期结果"
         },
-        ...
-    ]
+        {
+          "step_number": 2,
+          "description": "步骤描述",
+          "expected_result": "预期结果"
+        }
+      ]
+    }
+  ]
 }
+```
 
-测试用例生成指南：
-1. 每个测试用例必须有唯一的标题和重点
-2. 避免重复或冗余的测试用例
-3. 确保全面覆盖所有场景
-4. 包含正向和负向测试用例
-5. 考虑边界条件和异常情况
-6. 测试用例应清晰、具体且可执行
-
-测试用例类别必须是以下之一：
-- Functional（功能测试）
-- UI/UX（界面/用户体验测试）
-- Security（安全性测试）
-- Performance（性能测试）
-- Compatibility（兼容性测试）
-- Usability（可用性测试）
-
-再次警告：
-- 只返回JSON对象
-- 不要有任何其他内容
-- 不要包含任何解释或说明
-- 不要显示你的思考过程
-- 响应必须以'{'开始
-- 响应必须以'}'结束"""
+请确保生成的JSON格式严格正确！不要有任何注释！
+请生成多个测试用例，覆盖所有功能点和边界条件！
+"""
 
     def _parse_test_cases(self, response: str) -> List[TestCase]:
         """
@@ -183,8 +192,14 @@ JSON结构必须严格遵循以下格式：
                         # 尝试提取必要的字段
                         module = tc.get('module', '')
                         title = tc.get('title', '')
-                        priority = tc.get('priority', 'Medium')
-                        category = tc.get('category', 'Functional')
+                        
+                        # 处理优先级，确保使用中文格式
+                        priority = tc.get('priority', '中') 
+                        # 如果是英文优先级，转换为中文
+                        if priority.lower() in PRIORITY_MAPPING:
+                            priority = PRIORITY_MAPPING[priority.lower()]
+                        elif priority in LEGACY_PRIORITY_MAPPING:
+                            priority = LEGACY_PRIORITY_MAPPING[priority]
                         
                         # 处理前置条件
                         preconditions = tc.get('preconditions', [])
@@ -220,19 +235,18 @@ JSON结构必须严格遵循以下格式：
                         
                         # 创建测试用例
                         test_case = TestCase(
-                            id=str(uuid.uuid4()),
+                            id=self.generate_test_id(),  # 使用新的ID生成方法
                             module=module or '登录模块',
                             title=title or '未命名测试用例',
                             preconditions=preconditions or [],
                             steps=steps,
-                            priority=priority or 'Medium',
-                            category=category or 'Functional'
+                            priority=priority  # 使用处理后的中文优先级
                         )
                         
                         print(f"\nCreated test case: {test_case.title}")
+                        print(f"ID: {test_case.id}")  # 打印生成的ID
                         print(f"Module: {test_case.module}")
                         print(f"Priority: {test_case.priority}")
-                        print(f"Category: {test_case.category}")
                         print(f"Steps count: {len(test_case.steps)}")
                         
                         # 验证测试用例
@@ -267,7 +281,7 @@ JSON结构必须严格遵循以下格式：
             TestCase: 示例测试用例对象
         """
         return TestCase(
-            id=str(uuid.uuid4()),
+            id=self.generate_test_id(),  # 使用新的ID生成方法
             module="登录模块",
             title="用户名密码登录-正常流程",
             preconditions=[
@@ -292,8 +306,7 @@ JSON结构必须严格遵循以下格式：
                     expected_result='登录成功，跳转到首页'
                 )
             ],
-            priority="High",
-            category="Functional"
+            priority="高"  # 使用中文优先级
         )
 
     def validate_test_case(self, test_case: TestCase) -> bool:
@@ -307,28 +320,15 @@ JSON结构必须严格遵循以下格式：
             bool: 测试用例是否有效
         """
         try:
-            # 映射常见的类别名称到标准类别
-            category_mapping = {
-                'feature': 'Functional',
-                'functional': 'Functional',
-                'ui': 'UI/UX',
-                'ux': 'UI/UX',
-                'performance': 'Performance',
-                'security': 'Security',
-                'edge': 'Edge Cases',
-                'edge case': 'Edge Cases',
-                'edge_case': 'Edge Cases'
-            }
-            
-            # 转换类别名称
-            test_case.category = category_mapping.get(
-                test_case.category.lower(),
-                'Functional'  # 默认使用 Functional
-            )
-            
-            # 确保优先级有效
+            # 确保优先级有效，使用中文优先级
             if test_case.priority not in DEFAULT_TEST_PRIORITY_LEVELS:
-                test_case.priority = 'Medium'  # 默认使用 Medium
+                # 尝试转换英文优先级到中文
+                if test_case.priority.lower() in PRIORITY_MAPPING:
+                    test_case.priority = PRIORITY_MAPPING[test_case.priority.lower()]
+                elif test_case.priority in LEGACY_PRIORITY_MAPPING:
+                    test_case.priority = LEGACY_PRIORITY_MAPPING[test_case.priority]
+                else:
+                    test_case.priority = '中'  # 默认使用"中"优先级
             
             # 验证其他字段
             assert len(test_case.steps) > 0
