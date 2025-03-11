@@ -61,6 +61,24 @@ EXCEL_TEMPLATE_HEADERS = [
     "预期结果"           # Expected Results
 ]
 
+# 爬虫配置
+# 定义爬虫的默认配置
+CRAWLER_CONFIG = {
+    "headers": {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    },
+    "content_selector": "main, .content, .main-content, article, .article, .document, #content",
+    "exclude_selectors": [
+        "header", "footer", "nav", ".navigation", ".sidebar", 
+        "script", "style", ".advertisement", ".menu", ".breadcrumb",
+        ".comment-section", "#comments", "#header", "#footer", "#nav"
+    ]
+}
+
+# 爬虫模块临时文件目录
+CRAWLER_TEMP_DIR = os.path.join(os.path.dirname(__file__), "..", "temp")
+os.makedirs(CRAWLER_TEMP_DIR, exist_ok=True)
+
 # LLM提示词配置
 # 生成内容的最大令牌数
 MAX_TOKENS = 4000  # 增加token数以确保完整的响应

@@ -1,0 +1,25 @@
+{
+    "headers": {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    },
+    "content_selector": ".document-content",
+    "exclude_selectors": [
+        "header", 
+        "footer", 
+        "nav", 
+        ".navigation", 
+        ".sidebar", 
+        "script", 
+        "style", 
+        ".advertisement", 
+        ".menu", 
+        ".breadcrumb",
+        ".comment-section"
+    ],
+    "login_url": "https://example-internal.com/login",
+    "login_data": {
+        "username": "your_username",
+        "password": "your_password"
+    },
+    "auth": ["username", "password"]
+} 
