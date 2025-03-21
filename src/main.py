@@ -1,14 +1,19 @@
 """
-主程序入口
-演示如何使用测试用例生成器生成并导出测试用例
+主程序
+演示如何生成和导出测试用例
 """
 
 import asyncio
 import os
-from src.core.llm_engine import LLMEngine
-from src.core.test_generator import TestGenerator
-from src.exporters.excel_exporter import ExcelExporter
-from src.exporters.xmind_exporter import XMindExporter
+import sys
+
+# 将当前目录添加到Python路径
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from core.llm_engine import LLMEngine
+from core.test_generator import TestGenerator
+from exporters.excel_exporter import ExcelExporter
+from exporters.xmind_exporter import XMindExporter
 
 def read_requirements(file_path: str) -> str:
     """

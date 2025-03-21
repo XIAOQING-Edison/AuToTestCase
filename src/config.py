@@ -11,13 +11,40 @@ load_dotenv()
 
 # API 配置
 # 从环境变量中获取API密钥，确保安全性
-API_KEY = None  # 本地模型不需要API密钥
+API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("API_KEY")  # 支持多种API密钥
 
-# 使用本地部署的模型
-# 优先尝试使用环境变量中指定的模型，否则使用默认模型
-DEFAULT_MODEL = "deepseek-r1:7b"  # 根据已安装的模型修改默认值
+# 检查API密钥格式并处理
+if API_KEY:
+    # 确保API密钥格式正确
+    print(f"已加载API密钥: {API_KEY[:15]}...")
+else:
+    # 如果环境变量中没有找到API密钥，使用默认值进行测试
+    API_KEY = "api-sk-67d140832e0cc3-45510241"  # 默认测试密钥
+    print(f"未找到API密钥环境变量，使用默认测试密钥")
+
+# 模型配置
+# 使用环境变量决定接入远程API还是本地模型
+USE_REMOTE_API = os.getenv("USE_REMOTE_API", "true").lower() in ["true", "1", "yes", "y", "t"]
+
+# 远程API默认配置
+DEFAULT_REMOTE_MODEL = "gpt-3.5-turbo"  # 默认使用的远程模型
+DEFAULT_REMOTE_API_BASE = "https://api.openai.com"  # 默认API基础URL
+
+# 本地模型默认配置
+DEFAULT_LOCAL_MODEL = "deepseek-r1:7b"  # 本地默认模型
+DEFAULT_LOCAL_API_BASE = "http://localhost:11434"  # Ollama默认端口
+
+# 根据使用远程还是本地模型选择默认值
+if USE_REMOTE_API:
+    DEFAULT_MODEL = DEFAULT_REMOTE_MODEL
+    DEFAULT_API_BASE = DEFAULT_REMOTE_API_BASE
+else:
+    DEFAULT_MODEL = DEFAULT_LOCAL_MODEL
+    DEFAULT_API_BASE = DEFAULT_LOCAL_API_BASE
+
+# 优先使用环境变量指定的值，否则使用默认值
 MODEL = os.getenv("MODEL", DEFAULT_MODEL)
-API_BASE = os.getenv("API_BASE", "http://localhost:11434")  # Ollama默认端口是11434
+API_BASE = os.getenv("API_BASE", DEFAULT_API_BASE)
 
 # 如果需要可以尝试的备选模型列表（按优先级排序）
 FALLBACK_MODELS = ["deepseek-r1:7b", "llama2:7b", "mistral:7b", "deepseek-coder:6.7b", "mistral:latest", "llama2"]
